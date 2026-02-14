@@ -1,0 +1,17 @@
+apiVersion: v2
+name: nginx-chart
+description: A Helm chart for Nginx web server with flexible configuration
+type: application
+version: 0.1.0
+appVersion: "1.25"
+
+keywords:
+  - nginx
+  - web
+  - http
+
+maintainers:
+  - name: myName
+
+sources:
+  - https://github.com/nginx/nginx
