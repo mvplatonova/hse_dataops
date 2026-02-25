@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  jupyterhub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jupyterhub-server
+    restart: unless-stopped
+    
+    environment:
+      JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
+      JUPYTERHUB_COOKIE_SECRET: ${JUPYTERHUB_COOKIE_SECRET}
+      
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      
+      JUPYTERHUB_ADMIN: ${JUPYTERHUB_ADMIN}
+      
+      PYTHONUNBUFFERED: "1"
+    
+    ports:
+      - "${JUPYTERHUB_PORT:-8000}:8000"
+      - "8081:8081"
+    
+    volumes:
+      - ./jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+      
+      - jupyterhub_data:/srv/jupyterhub/data
+      
+      - jupyterhub_logs:/var/log/jupyterhub
+      
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    
+    networks:
+      - jupyterhub-network
+    
+    depends_on:
+      db:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/hub/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    container_name: jupyterhub-postgres
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    
+    networks:
+      - jupyterhub-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  jupyterhub_data:
+    driver: local
+  jupyterhub_logs:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  jupyterhub-network:
+    driver: bridge
