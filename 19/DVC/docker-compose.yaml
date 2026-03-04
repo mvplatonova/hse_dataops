@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база данных для LakeFS
+  db:
+    image: postgres:16-alpine
+    container_name: lakefs-postgres
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    
+    networks:
+      - lakefs-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # MinIO S3-совместимое хранилище
+  minio:
+    image: minio/minio:latest
+    container_name: lakefs-minio
+    restart: unless-stopped
+    
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    
+    command: server /data --console-address ":9001"
+    
+    ports:
+      - "${MINIO_PORT:-9000}:9000"       # API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Web Console
+    
+    volumes:
+      - minio_data:/data
+    
+    networks:
+      - lakefs-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 30s
+
+  # LakeFS сервер
+  lakefs:
+    image: treeverse/lakefs:latest
+    container_name: lakefs-server
+    restart: unless-stopped
+    
+    environment:
+      # Database connection
+      LAKEFS_DATABASE_TYPE: postgres
+      LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      
+      # Authentication
+      LAKEFS_AUTH_ENCRYPT_SECRET_KEY: ${LAKEFS_AUTH_SECRET_KEY}
+      
+      # Blockstore (S3/MinIO)
+      LAKEFS_BLOCKSTORE_TYPE: s3
+      LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE: "true"
+      LAKEFS_BLOCKSTORE_S3_ENDPOINT: http://minio:9000
+      LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      
+      # Logging
+      LAKEFS_LOGGING_LEVEL: INFO
+      
+      # Stats collection
+      LAKEFS_STATS_ENABLED: "false"
+    
+    ports:
+      - "${LAKEFS_PORT:-8000}:8000"
+    
+    networks:
+      - lakefs-network
+    
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    volumes:
+      - ./lakefs-config.yaml:/etc/lakefs/config.yaml:ro
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  lakefs-network:
+    driver: bridge
