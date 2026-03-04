@@ -1,0 +1,39 @@
+# Environment variables
+.env
+
+# LakeFS
+.lakectl.yaml
+lakefs.db
+
+# Data directories
+data/
+minio-data/
+
+# Logs
+*.log
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
