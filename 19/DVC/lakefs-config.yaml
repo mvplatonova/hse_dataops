@@ -1,0 +1,53 @@
+---
+# LakeFS configuration file
+
+# Database configuration
+database:
+  type: "postgres"
+  postgres:
+    connection_string: "postgres://lakefs_user:lakefs_password@db:5432/lakefs_db?sslmode=disable"
+
+# Authentication
+auth:
+  encrypt:
+    # Secret key for encryption (должен совпадать с env переменной)
+    secret_key: "random-secret-key-min-32-chars-long-change-in-production"
+
+# Blockstore (object storage)
+blockstore:
+  type: "s3"
+  s3:
+    # MinIO endpoint
+    endpoint: "http://minio:9000"
+    
+    # Force path style (required for MinIO)
+    force_path_style: true
+    
+    # Credentials
+    credentials:
+      access_key_id: "minioadmin"
+      secret_access_key: "minioadmin"
+    
+    # Region (not used by MinIO, but required)
+    region: "us-east-1"
+
+# Committed data
+committed:
+  local_cache:
+    # Size of local cache for committed data
+    size_bytes: 1073741824  # 1GB
+    dir: /tmp/lakefs/cache
+
+# Logging
+logging:
+  level: "INFO"
+  format: "json"
+
+# Stats collection (disable for privacy)
+stats:
+  enabled: false
+
+# Security
+security:
+  # Audit log
+  audit_check_interval: 1h
